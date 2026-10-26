@@ -171,10 +171,13 @@ try {
     else {
         Write-Host 'Updating MSYS2 and installing UCRT64 GCC. Close any other MSYS2 terminals first.'
         Invoke-Native $bash @('--login', '-c', 'true')
-        # Core updates can close MSYS2 shells. Run pacman directly, then finish the update in a second process.
-        Invoke-Native $pacman @('--noconfirm', '-Syu')
-        Invoke-Native $pacman @('--noconfirm', '-Syu')
-        Invoke-Native $pacman @('--noconfirm', '-S', '--needed', 'mingw-w64-ucrt-x86_64-gcc')
+        # Repair certificates left by updates run without the MSYS2 PATH.
+        Invoke-Native $bash @('--login', '-c', 'update-ca-trust')
+        # Each login shell supplies the MSYS2 PATH required by package scripts.
+        # Core updates can close MSYS2 shells, so finish in a fresh process.
+        Invoke-Native $bash @('--login', '-c', 'pacman --noconfirm -Syu')
+        Invoke-Native $bash @('--login', '-c', 'pacman --noconfirm -Syu')
+        Invoke-Native $bash @('--login', '-c', 'pacman --noconfirm -S --needed mingw-w64-ucrt-x86_64-gcc')
     }
     Add-UserPath $gccDirectory
     Invoke-Native $gcc @('--version')
