@@ -94,7 +94,7 @@ function Get-Download {
 
     $destination = Join-Path $workDirectory $FileName
     Write-Host "Downloading $FileName..."
-    & $curl --fail --location --silent --show-error --output $destination $Url | Out-Host
+    & $curl --tlsv1.2 --tls-max '1.2' --fail --location --silent --show-error --stderr - --output $destination $Url | Out-Host
     if ($LASTEXITCODE -ne 0) {
         throw "Download failed from '$Url': curl exited with code $LASTEXITCODE. See the command output above."
     }
@@ -131,12 +131,13 @@ try {
         throw 'This setup requires an Intel/AMD 64-bit PC and 64-bit Windows PowerShell. ARM and 32-bit Windows are not supported.'
     }
 
-    $curl = Find-Executable 'curl.exe' @("$env:SystemRoot\System32\curl.exe")
+    $curl = Find-Executable 'curl.exe'
     if (-not $curl) { throw 'curl.exe is missing. Restore the curl included with Windows before rerunning setup.' }
     $workDirectory = Join-Path $env:TEMP ('student-setup-' + [Guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $workDirectory | Out-Null
     Start-Transcript -Path (Join-Path $workDirectory 'setup.log') | Out-Null
     Write-Host "Setup logs: $workDirectory"
+    Write-Host "Using curl: $curl"
     Update-SessionPath
 
     $step = 'Installing MSYS2'

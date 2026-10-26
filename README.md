@@ -12,7 +12,7 @@ On an Intel or AMD 64-bit PC running Windows 10 version 1903 or newer, or Window
 
 ```powershell
 $setupScript = Join-Path $env:TEMP ('windows-go-setup-' + [Guid]::NewGuid().ToString('N') + '.ps1')
-curl.exe -fL -o $setupScript 'https://raw.githubusercontent.com/tsukinoko-kun/windows-go-setup/refs/heads/main/setup.ps1'
+curl.exe --tlsv1.2 --tls-max '1.2' -fL -o $setupScript 'https://raw.githubusercontent.com/tsukinoko-kun/windows-go-setup/refs/heads/main/setup.ps1'
 if ($LASTEXITCODE -eq 0) {
     powershell.exe -NoProfile -ExecutionPolicy Bypass -File $setupScript
 } else {
