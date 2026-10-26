@@ -89,17 +89,22 @@ function Add-UserPath {
     }
 }
 
-function Get-Installer {
-    param([string]$Url, [string]$FileName, [string]$Sha256)
+function Get-Download {
+    param([string]$Url, [string]$FileName)
 
     $destination = Join-Path $workDirectory $FileName
     Write-Host "Downloading $FileName..."
-    try {
-        Invoke-WebRequest -UseBasicParsing -Uri $Url -OutFile $destination
+    & $curl --fail --location --silent --show-error --output $destination $Url | Out-Host
+    if ($LASTEXITCODE -ne 0) {
+        throw "Download failed from '$Url': curl exited with code $LASTEXITCODE. See the command output above."
     }
-    catch {
-        throw "Download failed from '$Url': $($_.Exception.Message)"
-    }
+    return $destination
+}
+
+function Get-Installer {
+    param([string]$Url, [string]$FileName, [string]$Sha256)
+
+    $destination = Get-Download $Url $FileName
     if ($Sha256) {
         if ($Sha256 -notmatch '^[a-fA-F0-9]{64}$') { throw "Invalid SHA-256 checksum for $FileName." }
         if ((Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash -ine $Sha256) {
@@ -126,7 +131,8 @@ try {
         throw 'This setup requires an Intel/AMD 64-bit PC and 64-bit Windows PowerShell. ARM and 32-bit Windows are not supported.'
     }
 
-    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+    $curl = Find-Executable 'curl.exe' @("$env:SystemRoot\System32\curl.exe")
+    if (-not $curl) { throw 'curl.exe is missing. Restore the curl included with Windows before rerunning setup.' }
     $workDirectory = Join-Path $env:TEMP ('student-setup-' + [Guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $workDirectory | Out-Null
     Start-Transcript -Path (Join-Path $workDirectory 'setup.log') | Out-Null
@@ -149,11 +155,11 @@ try {
         if (Test-Path -LiteralPath $Msys2Root) {
             throw "'$Msys2Root' already exists but does not contain MSYS2. Choose another path with -Msys2Root; setup will not overwrite it."
         }
-        $page = Invoke-WebRequest -UseBasicParsing -Uri 'https://www.msys2.org/'
-        $link = [regex]::Match($page.Content, 'https://github\.com/msys2/msys2-installer/releases/download/[0-9-]+/msys2-x86_64-[0-9]+\.exe')
+        $pageFile = Get-Download 'https://www.msys2.org/' 'msys2.html'
+        $page = Get-Content -LiteralPath $pageFile -Raw -Encoding UTF8
+        $link = [regex]::Match($page, 'https://github\.com/msys2/msys2-installer/releases/download/[0-9-]+/msys2-x86_64-[0-9]+\.exe')
         if (-not $link.Success) { throw 'Could not find the stable MSYS2 installer on https://www.msys2.org/.' }
-        $checksumFile = Join-Path $workDirectory 'msys2.exe.sha256'
-        Invoke-WebRequest -UseBasicParsing -Uri ($link.Value + '.sha256') -OutFile $checksumFile
+        $checksumFile = Get-Download ($link.Value + '.sha256') 'msys2.exe.sha256'
         $checksum = ((Get-Content -LiteralPath $checksumFile -Raw).Trim() -split '\s+')[0]
         $installer = Get-Installer $link.Value 'msys2.exe' $checksum
         Install-Exe $installer ('in --confirm-command --accept-messages --root "' + $Msys2Root.Replace('\', '/') + '"')
@@ -192,7 +198,8 @@ try {
         if (Test-Path -LiteralPath $goDirectory) {
             throw "'$goDirectory' already exists but does not contain bin\go.exe. Move or repair it before rerunning setup; setup will not overwrite it."
         }
-        $releases = Invoke-RestMethod -Uri 'https://go.dev/dl/?mode=json'
+        $releasesFile = Get-Download 'https://go.dev/dl/?mode=json' 'go-releases.json'
+        $releases = Get-Content -LiteralPath $releasesFile -Raw -Encoding UTF8 | ConvertFrom-Json
         $release = $releases | Where-Object { $_.stable } | Select-Object -First 1
         $package = $release.files | Where-Object { $_.os -eq 'windows' -and $_.arch -eq 'amd64' -and $_.kind -eq 'archive' } | Select-Object -First 1
         if (-not $package) { throw 'Could not find the stable Windows x64 ZIP in the Go download feed.' }
@@ -218,7 +225,8 @@ try {
         Write-Host "Skipping Git for Windows, already installed at $git. Existing Git settings are unchanged."
     }
     else {
-        $tag = (Invoke-WebRequest -UseBasicParsing -Uri 'https://gitforwindows.org/latest-tag.txt').Content.Trim()
+        $tagFile = Get-Download 'https://gitforwindows.org/latest-tag.txt' 'git-latest-tag.txt'
+        $tag = (Get-Content -LiteralPath $tagFile -Raw -Encoding UTF8).Trim()
         if ($tag -notmatch '^v(?<version>\d+\.\d+\.\d+)\.windows\.(?<patch>\d+)$') {
             throw "Unrecognized Git for Windows release tag '$tag'."
         }
