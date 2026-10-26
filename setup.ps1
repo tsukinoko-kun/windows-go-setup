@@ -183,27 +183,31 @@ try {
     Invoke-Native $gcc @('--version')
 
     $step = 'Installing Go for Windows'
-    $go = Find-Executable 'go.exe' @("$env:ProgramFiles\Go\bin\go.exe", "$env:SystemDrive\Go\bin\go.exe")
+    $goDirectory = Join-Path $env:LOCALAPPDATA 'Programs\Go'
+    $go = Find-Executable 'go.exe' @((Join-Path $goDirectory 'bin\go.exe'), "$env:ProgramFiles\Go\bin\go.exe", "$env:SystemDrive\Go\bin\go.exe")
     if ($go) {
         Write-Host "Skipping Go, already installed at $go."
     }
     else {
+        if (Test-Path -LiteralPath $goDirectory) {
+            throw "'$goDirectory' already exists but does not contain bin\go.exe. Move or repair it before rerunning setup; setup will not overwrite it."
+        }
         $releases = Invoke-RestMethod -Uri 'https://go.dev/dl/?mode=json'
         $release = $releases | Where-Object { $_.stable } | Select-Object -First 1
-        $package = $release.files | Where-Object { $_.os -eq 'windows' -and $_.arch -eq 'amd64' -and $_.kind -eq 'installer' } | Select-Object -First 1
-        if (-not $package) { throw 'Could not find the stable Windows x64 MSI in the Go download feed.' }
-        $installer = Get-Installer ('https://go.dev/dl/' + $package.filename) 'go.msi' $package.sha256
-        $log = Join-Path $workDirectory 'go-install.log'
-        Write-Host 'Installing Go. Approve the Windows administrator prompt when it appears.'
-        $process = Start-Process -FilePath "$env:WINDIR\System32\msiexec.exe" -Verb RunAs -Wait -PassThru -ArgumentList "/i `"$installer`" /qn /norestart /L*v `"$log`""
-        if ($process.ExitCode -notin @(0, 3010)) {
-            throw "Go installer failed with exit code $($process.ExitCode). Installer log: $log"
+        $package = $release.files | Where-Object { $_.os -eq 'windows' -and $_.arch -eq 'amd64' -and $_.kind -eq 'archive' } | Select-Object -First 1
+        if (-not $package) { throw 'Could not find the stable Windows x64 ZIP in the Go download feed.' }
+        $archive = Get-Installer ('https://go.dev/dl/' + $package.filename) 'go.zip' $package.sha256
+        Write-Host "Extracting Go to $goDirectory. This may take a few minutes."
+        Expand-Archive -LiteralPath $archive -DestinationPath $workDirectory
+        $extractedGo = Join-Path $workDirectory 'go'
+        if (-not (Test-Path -LiteralPath (Join-Path $extractedGo 'bin\go.exe') -PathType Leaf)) {
+            throw "Go archive was extracted, but bin\go.exe was not found in '$extractedGo'."
         }
-        if ($process.ExitCode -eq 3010) { Write-Warning 'Go installed successfully, but Windows requests a restart after setup.' }
-        Update-SessionPath
-        $go = Find-Executable 'go.exe' @("$env:ProgramFiles\Go\bin\go.exe")
-        if (-not $go) { throw "Go installer finished, but go.exe was not found. Installer log: $log" }
+        New-Item -ItemType Directory -Path (Split-Path -Parent $goDirectory) -Force | Out-Null
+        Move-Item -LiteralPath $extractedGo -Destination $goDirectory
+        $go = Join-Path $goDirectory 'bin\go.exe'
     }
+    Add-UserPath (Split-Path -Parent $go)
     Invoke-Native $go @('version')
 
     $step = 'Installing Git for Windows'
@@ -271,7 +275,7 @@ try {
 
     $step = 'Finishing setup'
     Get-ChildItem -LiteralPath $workDirectory -File |
-        Where-Object { $_.Extension -in @('.exe', '.msi') } |
+        Where-Object { $_.Extension -in @('.exe', '.zip') } |
         Remove-Item -Force
     Write-Host ''
     Write-Host 'Setup complete. Open a new terminal and restart Zed to use the updated PATH.' -ForegroundColor Green

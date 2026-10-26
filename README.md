@@ -14,4 +14,4 @@ On an Intel or AMD 64-bit Windows 11 PC, open a PowerShell tab in Windows Termin
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-Expression ((New-Object Net.WebClient -Property @{Encoding=[Text.Encoding]::UTF8}).DownloadString('https://raw.githubusercontent.com/tsukinoko-kun/windows-go-setup/refs/heads/main/setup.ps1'))"
 ```
 
-Approve the Windows administrator prompt when the Go installer requests it. After setup finishes, open a new terminal and restart Zed to use the updated `PATH`.
+Setup reuses an existing Go installation or extracts the official Go ZIP to `%LOCALAPPDATA%\Programs\Go` without administrator privileges. It configures `PATH` automatically. After setup finishes, open a new terminal and restart Zed to use the updated `PATH`.
