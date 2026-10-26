@@ -15,3 +15,14 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-Expression ((
 ```
 
 Setup reuses an existing Go installation or extracts the official Go ZIP to `%LOCALAPPDATA%\Programs\Go` without administrator privileges. It configures `PATH` automatically. After setup finishes, open a new terminal and restart Zed to use the updated `PATH`.
+
+## Try Go with raylib
+
+From this repository in a new PowerShell terminal, run:
+
+```powershell
+cd raylib-example
+go run .
+```
+
+The first run downloads dependencies and compiles raylib's bundled C code using GCC. This can take a few minutes. A window should open with a blue circle and "Go + raylib works!". Press Escape to close it.
