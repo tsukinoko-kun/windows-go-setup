@@ -189,6 +189,14 @@ try {
     Add-UserPath $gccDirectory
     Invoke-Native $gcc @('--version')
 
+    $step = 'Preparing MSYS2 curl'
+    $curl = Join-Path $Msys2Root 'usr\bin\curl.exe'
+    if (-not (Test-Path -LiteralPath $curl -PathType Leaf)) {
+        Invoke-Native $bash @('--login', '-c', 'pacman --noconfirm -S --needed curl')
+    }
+    Write-Host "Using MSYS2 curl (OpenSSL): $curl"
+    Invoke-Native $curl @('--version')
+
     $step = 'Installing Go for Windows'
     $goDirectory = Join-Path $env:LOCALAPPDATA 'Programs\Go'
     $go = Find-Executable 'go.exe' @((Join-Path $goDirectory 'bin\go.exe'), "$env:ProgramFiles\Go\bin\go.exe", "$env:SystemDrive\Go\bin\go.exe")
